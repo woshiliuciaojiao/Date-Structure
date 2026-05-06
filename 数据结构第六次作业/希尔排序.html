@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>希尔排序【手把手分步+详细讲解版】</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+
+        .tip {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .gap-info {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #409eff;
+            margin-bottom: 15px;
+        }
+
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #409eff;
+            color: white;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .sort-visualization {
+            height: 380px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 6px;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .bar {
+            width: 34px;
+            background-color: #409eff;
+            border-radius: 4px 4px 0 0;
+            transition: height 0.4s, background-color 0.4s;
+            position: relative;
+        }
+
+        .bar-value {
+            position: absolute;
+            top: -26px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 15px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .bar-current {
+            background-color: #f56c6c !important;
+        }
+
+        .step-info {
+            text-align: center;
+            font-size: 17px;
+            color: #333;
+            margin-top: 20px;
+            min-height: 25px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .progress {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .explain {
+            text-align: center;
+            font-size: 16px;
+            color: #555;
+            margin-top: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>希尔排序 - 手把手分步演示（带详细讲解）</h1>
+        <div class="tip">排序数组：[8, 9, 1, 7, 2, 3, 5, 4, 6, 0]</div>
+        
+        <div class="gap-info" id="gapInfo">当前增量 gap：未开始</div>
+        
+        <div class="control-panel">
+            <button id="prevBtn">上一步</button>
+            <button id="nextBtn">下一步</button>
+            <button id="autoBtn">自动播放</button>
+            <button id="resetBtn">重置</button>
+        </div>
+
+        <div class="sort-visualization" id="visualization"></div>
+        <div class="step-info" id="stepInfo">等待操作...</div>
+        <div class="explain" id="explain"></div>
+        <div class="progress" id="progress"></div>
+    </div>
+
+    <script>
+        const originalArr = [8, 9, 1, 7, 2, 3, 5, 4, 6, 0];
+        let arr = [...originalArr];
+        let steps = [];
+        let currentStep = 0;
+        let bars = [];
+        let autoPlaying = false;
+
+        window.onload = () => {
+            generateAllSteps();
+            render();
+            bindBtns();
+        };
+
+        function render() {
+            const v = document.getElementById('visualization');
+            v.innerHTML = '';
+            bars = [];
+            arr.forEach((val, i) => {
+                const b = document.createElement('div');
+                b.className = 'bar';
+                b.style.height = `${val * 22}px`;
+                const t = document.createElement('div');
+                t.className = 'bar-value';
+                t.textContent = val;
+                b.appendChild(t);
+                v.appendChild(b);
+                bars.push(b);
+            });
+            updateInfo();
+        }
+
+        function bindBtns() {
+            document.getElementById('nextBtn').onclick = next;
+            document.getElementById('prevBtn').onclick = prev;
+            document.getElementById('autoBtn').onclick = autoPlay;
+            document.getElementById('resetBtn').onclick = reset;
+        }
+
+        function reset() {
+            clearTimeout(autoPlaying);
+            autoPlaying = false;
+            arr = [...originalArr];
+            currentStep = 0;
+            render();
+            document.getElementById('stepInfo').innerText = "已重置";
+            document.getElementById('explain').innerText = "";
+            document.getElementById('gapInfo').innerText = "当前增量 gap：未开始";
+            document.getElementById('progress').innerText = "";
+        }
+
+        function next() {
+            if (currentStep >= steps.length) return;
+            const s = steps[currentStep];
+            arr = [...s.arr];
+            currentStep++;
+            render();
+        }
+
+        function prev() {
+            if (currentStep <= 0) return;
+            currentStep--;
+            const s = steps[currentStep];
+            arr = [...s.arr];
+            render();
+        }
+
+        async function autoPlay() {
+            if (autoPlaying) return;
+            autoPlaying = true;
+            while (currentStep < steps.length) {
+                next();
+                await sleep(700);
+            }
+            autoPlaying = false;
+        }
+
+        function updateInfo() {
+            if (currentStep === 0) {
+                document.getElementById('stepInfo').innerText = "初始状态";
+                document.getElementById('explain').innerText = "希尔排序 = 分组插入排序，先大gap粗排，最后gap=1精排";
+                document.getElementById('progress').innerText = "";
+                bars.forEach(b => b.classList.remove('bar-current'));
+                return;
+            }
+
+            const s = steps[currentStep - 1];
+            document.getElementById('stepInfo').innerText = s.text;
+            document.getElementById('explain').innerText = s.explain;
+            document.getElementById('gapInfo').innerText = `当前增量 gap = ${s.gap}`;
+            document.getElementById('progress').innerText = `步骤：${currentStep} / ${steps.length}`;
+            
+            bars.forEach(b => b.classList.remove('bar-current'));
+            if (s.highlight !== -1) bars[s.highlight].classList.add('bar-current');
+        }
+
+        function generateAllSteps() {
+            let a = [...originalArr];
+            let n = a.length;
+            steps = [];
+            let gap = Math.floor(n / 2);
+
+            while (gap > 0) {
+                if (gap === 5) {
+                    steps.push({
+                        arr: [...a], gap: 5, highlight: -1,
+                        text: "第1轮：gap = 5",
+                        explain: "✅ 为什么取gap=5？\n数组长度10，初始gap=10/2=5\n✅ 怎么分组？\n下标 0↔5，1↔6，2↔7，3↔8，4↔9 各为一组"
+                    });
+                }
+                if (gap === 2) {
+                    steps.push({
+                        arr: [...a], gap: 2, highlight: -1,
+                        text: "第2轮：gap = 2",
+                        explain: "✅ gap缩小为 5/2=2\n✅ 分组：偶数下标一组、奇数下标一组"
+                    });
+                }
+                if (gap === 1) {
+                    steps.push({
+                        arr: [...a], gap: 1, highlight: -1,
+                        text: "第3轮：gap = 1",
+                        explain: "✅ gap=1 就是普通插入排序\n✅ 此时数组已接近有序，排得极快！"
+                    });
+                }
+
+                for (let i = gap; i < n; i++) {
+                    let temp = a[i];
+                    let j = i;
+
+                    steps.push({
+                        arr: [...a], gap, highlight: i,
+                        text: `当前取出 a[${i}] = ${temp}`,
+                        explain: `✅ 为什么取它？\n它是本组第1个未排序元素\n✅ 本组规则：每隔 ${gap} 个元素是一组`
+                    });
+
+                    let moveCount = 0;
+                    while (j >= gap && a[j - gap] > temp) {
+                        a[j] = a[j - gap];
+                        moveCount++;
+                        steps.push({
+                            arr: [...a], gap, highlight: j,
+                            text: `a[${j - gap}] = ${a[j - gap]} 比 ${temp} 大，向后挪`,
+                            explain: `✅ 为什么挪？\n前面更大，要给小的腾位置\n✅ 怎么挪？\n每次跳 ${gap} 位向前比较`
+                        });
+                        j -= gap;
+                    }
+
+                    a[j] = temp;
+                    steps.push({
+                        arr: [...a], gap, highlight: j,
+                        text: `将 ${temp} 插入到下标 ${j}`,
+                        explain: `✅ 为什么插这里？\n前面已经比它小，后面比它大\n✅ 本组插入排序完成`
+                    });
+                }
+                gap = Math.floor(gap / 2);
+            }
+
+            steps.push({
+                arr: [...a], gap: 0, highlight: -1,
+                text: "✅ 希尔排序完成！",
+                explain: "✅ 最终有序：0 1 2 3 4 5 6 7 8 9\n✅ 核心：先粗排让数组接近有序，最后精排超快"
+            });
+        }
+
+        function sleep(ms) {
+            return new Promise(r => setTimeout(r, ms));
+        }
+    </script>
+</body>
+</html>
